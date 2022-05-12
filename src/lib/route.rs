@@ -20,6 +20,10 @@ impl Route {
         Ok(Route { src, dst, delta })
     }
 
+    pub fn from_tuple<'a>(route_tuple: &(String, String, usize)) -> Result<Route, &'a str> {
+        Route::new(route_tuple.0.clone(), route_tuple.1.clone(), route_tuple.2)
+    }
+
     pub fn endpoints(&self) -> (String, String) {
         (self.src.clone(), self.dst.clone())
     }
@@ -68,11 +72,25 @@ mod route_tests {
     }
 
     #[test]
-    fn format_should_be_as_expected() {
+    fn instantiation_should_succeed_when_parameters_come_from_tuple() {
+        let route_tuple = ("A".to_string(), "B".to_string(), 2);
+        let route = Route::from_tuple(&route_tuple).ok().unwrap();
+        assert_eq!(route, Route { src: "A".to_string(), dst: "B".to_string(), delta: 2 })
+    }
+
+    #[test]
+    fn format_should_print_route_message() {
         let route = Route::new(String::from("A"), String::from("B"), 1);
         assert_eq!(
             format!("{}", route.ok().unwrap()),
             "Route to A from B, costing 1"
         )
+    }
+
+    #[test]
+    fn endpoints_should_return_route_source_and_destiny() {
+        let route = Route::new(String::from("A"), String::from("B"), 1).ok().unwrap();
+        let endpoints = route.endpoints();
+        assert_eq!(endpoints, ("A".to_string(), "B".to_string()))
     }
 }
