@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Route {
     src: String,
     dst: String,
@@ -18,6 +18,10 @@ impl Route {
         }
 
         Ok(Route { src, dst, delta })
+    }
+
+    pub fn endpoints(&self) -> (String, String) {
+        (self.src.clone(), self.dst.clone())
     }
 }
 
@@ -51,7 +55,7 @@ mod route_tests {
     }
 
     #[test]
-    fn instantiation_should_complete_if_parameters_are_acceptable() {
+    fn instantiation_should_succeed_if_parameters_are_acceptable() {
         let attempt_route = Route::new(String::from("A"), String::from("B"), 1);
         assert_eq!(
             attempt_route,
