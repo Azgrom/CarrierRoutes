@@ -24,13 +24,22 @@ impl Trajectories {
         Ok(Trajectories { routes })
     }
 
-    pub fn from_routes_tuples<'a>(routes_tuple: Vec<(String, String, usize)>) -> Result<Trajectories, &'a str> {
-        let routes = routes_tuple.iter().map(|r| Route::from_tuple(r).ok().unwrap()).collect();
+    pub fn from_routes_tuples<'a>(
+        routes_tuple: Vec<(String, String, usize)>,
+    ) -> Result<Trajectories, &'a str> {
+        let routes = routes_tuple
+            .iter()
+            .map(|r| Route::from_tuple(r).ok().unwrap())
+            .collect();
         Self::new(routes)
     }
 
     pub fn append<'a>(&mut self, routes: &mut Vec<Route>) -> Result<(), &str> {
-        if self.routes.iter().any(|self_route| routes.contains(self_route)) {
+        if self
+            .routes
+            .iter()
+            .any(|self_route| routes.contains(self_route))
+        {
             return Err(REP_ERROR);
         }
 
@@ -42,19 +51,23 @@ impl Trajectories {
             Some(err) => Some(err),
             None => match Self::guard_against_repeated_routes::<T>(&routes) {
                 Some(err) => Some(err),
-                None => None
+                None => None,
             },
-        }
+        };
     }
 
-    fn guard_against_empty_routes<'a, T: Debug + PartialEq>(routes: &Vec<Route>) -> Option<Result<T, &'a str>>{
+    fn guard_against_empty_routes<'a, T: Debug + PartialEq>(
+        routes: &Vec<Route>,
+    ) -> Option<Result<T, &'a str>> {
         if routes.is_empty() {
             return Some(Err(NO_ROUTE_ERROR));
         }
         None
     }
 
-    fn guard_against_repeated_routes<'a, T: Debug + PartialEq>(routes: &Vec<Route>) -> Option<Result<T, &'a str>> {
+    fn guard_against_repeated_routes<'a, T: Debug + PartialEq>(
+        routes: &Vec<Route>,
+    ) -> Option<Result<T, &'a str>> {
         if !Self::check_uniques(&routes) {
             return Some(Err(REP_ERROR));
         }
@@ -104,7 +117,7 @@ impl Trajectories {
 mod trajectories_tests {
     use super::*;
 
-    fn mock_routes() -> Vec<Route>{
+    fn mock_routes() -> Vec<Route> {
         let route_tuples = [
             ("A".to_string(), "B".to_string(), 1),
             ("B".to_string(), "C".to_string(), 1),
@@ -112,7 +125,10 @@ mod trajectories_tests {
             ("B".to_string(), "D".to_string(), 1),
             ("E".to_string(), "A".to_string(), 1),
         ];
-        route_tuples.iter().map(|x| Route::new(x.0.clone(), x.1.clone(), x.2).ok().unwrap()).collect()
+        route_tuples
+            .iter()
+            .map(|x| Route::new(x.0.clone(), x.1.clone(), x.2).ok().unwrap())
+            .collect()
     }
 
     #[test]
@@ -132,10 +148,7 @@ mod trajectories_tests {
             .unwrap();
 
         let result = trajectories.append(&mut Vec::from([repeated_route]));
-        assert_eq!(
-            result,
-            Err("There cannot be repetition of a given route")
-        )
+        assert_eq!(result, Err("There cannot be repetition of a given route"))
     }
 
     #[test]
