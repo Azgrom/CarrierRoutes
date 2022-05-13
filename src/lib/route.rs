@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Route {
     src: String,
     dst: String,
@@ -36,6 +36,12 @@ impl Display for Route {
             "Route to {} from {}, costing {}",
             self.src, self.dst, self.delta
         )
+    }
+}
+
+impl PartialEq for Route {
+    fn eq(&self, other: &Self) -> bool {
+        self.src == other.src && self.dst == other.dst && self.delta == other.delta
     }
 }
 
