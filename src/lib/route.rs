@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Route {
     src: String,
     dst: String,
@@ -36,6 +36,12 @@ impl Display for Route {
             "Route to {} from {}, costing {}",
             self.src, self.dst, self.delta
         )
+    }
+}
+
+impl PartialEq for Route {
+    fn eq(&self, other: &Self) -> bool {
+        self.src == other.src && self.dst == other.dst && self.delta == other.delta
     }
 }
 
@@ -75,7 +81,14 @@ mod route_tests {
     fn instantiation_should_succeed_when_parameters_come_from_tuple() {
         let route_tuple = ("A".to_string(), "B".to_string(), 2);
         let route = Route::from_tuple(&route_tuple).ok().unwrap();
-        assert_eq!(route, Route { src: "A".to_string(), dst: "B".to_string(), delta: 2 })
+        assert_eq!(
+            route,
+            Route {
+                src: "A".to_string(),
+                dst: "B".to_string(),
+                delta: 2
+            }
+        )
     }
 
     #[test]
@@ -89,7 +102,9 @@ mod route_tests {
 
     #[test]
     fn endpoints_should_return_route_source_and_destiny() {
-        let route = Route::new(String::from("A"), String::from("B"), 1).ok().unwrap();
+        let route = Route::new(String::from("A"), String::from("B"), 1)
+            .ok()
+            .unwrap();
         let endpoints = route.endpoints();
         assert_eq!(endpoints, ("A".to_string(), "B".to_string()))
     }
