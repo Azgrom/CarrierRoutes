@@ -4,8 +4,6 @@ use std::fmt::Debug;
 
 mod route;
 
-trait AdjacencyMatrix {}
-
 #[derive(Debug, PartialEq)]
 struct Trajectories {
     routes: Vec<Route>,
@@ -35,11 +33,7 @@ impl Trajectories {
     }
 
     pub fn append<'a>(&mut self, routes: &mut Vec<Route>) -> Result<(), &str> {
-        if self
-            .routes
-            .iter()
-            .any(|self_route| routes.contains(self_route))
-        {
+        if routes.iter().any(|r| self.routes.contains(r)) {
             return Err(REP_ERROR);
         }
 
@@ -156,7 +150,12 @@ mod trajectories_tests {
         let routes = mock_routes();
         let trajectories = Trajectories::new(routes[..1].to_vec()).ok().unwrap();
 
-        assert_eq!(trajectories, Trajectories { routes: routes[..1].to_vec() })
+        assert_eq!(
+            trajectories,
+            Trajectories {
+                routes: routes[..1].to_vec()
+            }
+        )
     }
 
     #[test]
@@ -165,5 +164,16 @@ mod trajectories_tests {
         let trajectories = Trajectories::new(routes).ok().unwrap();
 
         assert_eq!(trajectories.count_nodes(), 5);
+    }
+}
+
+struct AdjacencyMatrix {
+    data: Vec<Vec<usize>>,
+}
+
+impl AdjacencyMatrix {
+    pub fn new(nodes_amount: usize) {
+        let columns: Vec<usize> = Vec::with_capacity(nodes_amount);
+        let rows = [columns; nodes_amount].to_vec();
     }
 }
