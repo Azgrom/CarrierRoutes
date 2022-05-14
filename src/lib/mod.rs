@@ -156,7 +156,7 @@ mod trajectories_tests {
         let routes = mock_routes();
         let trajectories = Trajectories::new(routes[..1].to_vec()).ok().unwrap();
 
-        assert_eq!(trajectories, Trajectories { routes })
+        assert_eq!(trajectories, Trajectories { routes: routes[..1].to_vec() })
     }
 
     #[test]

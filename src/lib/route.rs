@@ -41,7 +41,7 @@ impl Display for Route {
 
 impl PartialEq for Route {
     fn eq(&self, other: &Self) -> bool {
-        self.src == other.src && self.dst == other.dst && self.delta == other.delta
+        self.src == other.src && self.dst == other.dst
     }
 }
 
