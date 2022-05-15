@@ -66,23 +66,17 @@ impl AdjacencyMatrix {
     }
 
     fn edges(&self) -> Vec<(usize, usize, usize)> {
-        let mut paths: Vec<(usize, usize, usize)> = Vec::new();
-        let adj_matrix = &mut self.clone();
+        let mut edges: Vec<(usize, usize, usize)> = Vec::new();
 
-        for (row_index, row) in adj_matrix.iter_mut().enumerate() {
-            for col in row.clone() {
-                if col.is_some() {
-                    let col_index = row.iter().position(|el| *el == col).unwrap();
-                    let el_weight = col.unwrap();
-
-                    paths.push((row_index, col_index, el_weight));
-
-                    row[col_index] = None;
+        for (row_index, row) in self.iter().enumerate() {
+            for (col_index, col) in row.iter().enumerate() {
+                if let Some(el_weight) = col {
+                    edges.push((row_index, col_index, *el_weight));
                 }
             }
         }
 
-        paths
+        edges
     }
 }
 
