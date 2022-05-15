@@ -65,7 +65,7 @@ impl AdjacencyMatrix {
         self.data.iter_mut()
     }
 
-    fn path(&self) -> Vec<(usize, usize, usize)> {
+    fn edges(&self) -> Vec<(usize, usize, usize)> {
         let mut paths: Vec<(usize, usize, usize)> = Vec::new();
         let adj_matrix = &mut self.clone();
 
@@ -125,9 +125,9 @@ mod adj_matrix_tests {
     }
 
     #[test]
-    fn path_method_should_return_all_possible_paths_tuple() {
+    fn edges_method_should_return_all_edges_and_their_weight() {
         let adj_matrix = mock_adj_matrix();
-        let paths = adj_matrix.path();
+        let paths = adj_matrix.edges();
 
         assert_eq!(paths, vec![(0, 1, 1), (1, 2, 1), (1, 3, 1), (2, 3, 1), (4, 0, 1)]);
     }
