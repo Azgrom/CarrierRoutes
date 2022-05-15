@@ -1,6 +1,6 @@
 use route::Route;
 use std::fmt::Debug;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 use std::slice::{Iter, SliceIndex};
 use trajectory::Trajectories;
 
@@ -10,6 +10,26 @@ mod trajectory;
 #[derive(Debug, PartialEq)]
 struct AdjacencyMatrix {
     data: Vec<Vec<Option<usize>>>,
+}
+
+impl<Idx> Index<Idx> for AdjacencyMatrix
+    where
+        Idx: SliceIndex<[Vec<Option<usize>>]>,
+{
+    type Output = Idx::Output;
+
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl<Idx> IndexMut<Idx> for AdjacencyMatrix
+    where
+        Idx: SliceIndex<[Vec<Option<usize>>]>,
+{
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        &mut self.data[index]
+    }
 }
 
 impl AdjacencyMatrix {
@@ -28,7 +48,7 @@ impl AdjacencyMatrix {
             let row_index = nodes.iter().position(|n| *n == route.source()).unwrap();
             let col_index = nodes.iter().position(|n| *n == route.destination()).unwrap();
 
-            adj_matrix.data[row_index][col_index] = Some(route.distance());
+            adj_matrix[row_index][col_index] = Some(route.distance());
         }
 
         adj_matrix
@@ -36,18 +56,6 @@ impl AdjacencyMatrix {
 
     pub fn iter(&self) -> Iter<'_, Vec<Option<usize>>> {
         self.data.iter()
-    }
-}
-
-impl<Idx> Index<Idx> for AdjacencyMatrix
-where
-    Idx: Index<[Vec<Option<usize>>], Output = Vec<Option<usize>>>
-        + SliceIndex<[Vec<Option<usize>>], Output = Vec<Option<usize>>>,
-{
-    type Output = Vec<Option<usize>>;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        &self.data[index]
     }
 }
 
