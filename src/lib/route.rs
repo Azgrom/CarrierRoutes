@@ -27,6 +27,18 @@ impl Route {
     pub fn endpoints(&self) -> (String, String) {
         (self.src.clone(), self.dst.clone())
     }
+
+    pub fn source(&self) -> String {
+        self.src.clone()
+    }
+
+    pub fn destination(&self) -> String {
+        self.dst.clone()
+    }
+
+    pub fn distance(&self) -> usize {
+        self.delta
+    }
 }
 
 impl Display for Route {
