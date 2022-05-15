@@ -109,18 +109,23 @@ impl Trajectories {
     }
 }
 
+pub fn route_tuple() -> [(String, String, usize); 5] {
+    [
+        ("A".to_string(), "B".to_string(), 1),
+        ("B".to_string(), "C".to_string(), 1),
+        ("C".to_string(), "D".to_string(), 1),
+        ("B".to_string(), "D".to_string(), 1),
+        ("E".to_string(), "A".to_string(), 1),
+    ]
+}
+
 #[cfg(test)]
 mod trajectories_tests {
     use crate::{Route, Trajectories};
+    use crate::trajectory::route_tuple;
 
     fn mock_routes() -> Vec<Route> {
-        let route_tuples = [
-            ("A".to_string(), "B".to_string(), 1),
-            ("B".to_string(), "C".to_string(), 1),
-            ("C".to_string(), "D".to_string(), 1),
-            ("B".to_string(), "D".to_string(), 1),
-            ("E".to_string(), "A".to_string(), 1),
-        ];
+        let route_tuples = route_tuple();
         route_tuples
             .iter()
             .map(|x| Route::new(x.0.clone(), x.1.clone(), x.2).ok().unwrap())

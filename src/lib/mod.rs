@@ -1,20 +1,20 @@
 use route::Route;
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
-use std::slice::{Iter, SliceIndex};
+use std::slice::{Iter, IterMut, SliceIndex};
 use trajectory::Trajectories;
 
 mod route;
 mod trajectory;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct AdjacencyMatrix {
     data: Vec<Vec<Option<usize>>>,
 }
 
 impl<Idx> Index<Idx> for AdjacencyMatrix
-    where
-        Idx: SliceIndex<[Vec<Option<usize>>]>,
+where
+    Idx: SliceIndex<[Vec<Option<usize>>]>,
 {
     type Output = Idx::Output;
 
@@ -24,8 +24,8 @@ impl<Idx> Index<Idx> for AdjacencyMatrix
 }
 
 impl<Idx> IndexMut<Idx> for AdjacencyMatrix
-    where
-        Idx: SliceIndex<[Vec<Option<usize>>]>,
+where
+    Idx: SliceIndex<[Vec<Option<usize>>]>,
 {
     fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
         &mut self.data[index]
@@ -46,7 +46,10 @@ impl AdjacencyMatrix {
 
         for route in trajectories.iter() {
             let row_index = nodes.iter().position(|n| *n == route.source()).unwrap();
-            let col_index = nodes.iter().position(|n| *n == route.destination()).unwrap();
+            let col_index = nodes
+                .iter()
+                .position(|n| *n == route.destination())
+                .unwrap();
 
             adj_matrix[row_index][col_index] = Some(route.distance());
         }
@@ -57,11 +60,43 @@ impl AdjacencyMatrix {
     pub fn iter(&self) -> Iter<'_, Vec<Option<usize>>> {
         self.data.iter()
     }
+
+    fn iter_mut(&mut self) -> IterMut<'_, Vec<Option<usize>>> {
+        self.data.iter_mut()
+    }
+
+    fn path(&self) -> Vec<(usize, usize, usize)> {
+        let mut paths: Vec<(usize, usize, usize)> = Vec::new();
+        let adj_matrix = &mut self.clone();
+
+        for (row_index, row) in adj_matrix.iter_mut().enumerate() {
+            for col in row.clone() {
+                if col.is_some() {
+                    let col_index = row.iter().position(|el| *el == col).unwrap();
+                    let el_weight = col.unwrap();
+
+                    paths.push((row_index, col_index, el_weight));
+
+                    row[col_index] = None;
+                }
+            }
+        }
+
+        paths
+    }
 }
 
 #[cfg(test)]
 mod adj_matrix_tests {
+    use crate::trajectory::route_tuple;
     use crate::{AdjacencyMatrix, Trajectories};
+
+    fn mock_adj_matrix() -> AdjacencyMatrix {
+        let route_tuples = route_tuple().to_vec();
+        let trajectories = Trajectories::from_routes_tuples(route_tuples).ok().unwrap();
+
+        AdjacencyMatrix::from_trajectories(trajectories)
+    }
 
     #[test]
     fn new_should_instantiate_empty_adjacency_matrix() {
@@ -73,16 +108,7 @@ mod adj_matrix_tests {
 
     #[test]
     fn from_trajectories_should_instantiate_adjacency_matrix_from_trajectories() {
-        let route_tuples = [
-            ("A".to_string(), "B".to_string(), 1),
-            ("B".to_string(), "C".to_string(), 1),
-            ("C".to_string(), "D".to_string(), 1),
-            ("B".to_string(), "D".to_string(), 1),
-            ("E".to_string(), "A".to_string(), 1),
-        ]
-        .to_vec();
-        let trajectories = Trajectories::from_routes_tuples(route_tuples).ok().unwrap();
-        let adj_matrix = AdjacencyMatrix::from_trajectories(trajectories);
+        let adj_matrix = mock_adj_matrix();
 
         assert_eq!(
             adj_matrix,
@@ -96,5 +122,13 @@ mod adj_matrix_tests {
                 ]
             }
         )
+    }
+
+    #[test]
+    fn path_method_should_return_all_possible_paths_tuple() {
+        let adj_matrix = mock_adj_matrix();
+        let paths = adj_matrix.path();
+
+        assert_eq!(paths, vec![(0, 1, 1), (1, 2, 1), (1, 3, 1), (2, 3, 1), (4, 0, 1)]);
     }
 }
