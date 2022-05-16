@@ -1,7 +1,7 @@
+use crate::Route;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::slice::Iter;
-use std::collections::HashSet;
-use crate::Route;
 
 #[derive(Debug, PartialEq)]
 pub struct Trajectories {
@@ -121,8 +121,8 @@ pub fn route_tuple() -> [(String, String, usize); 5] {
 
 #[cfg(test)]
 mod trajectories_tests {
-    use crate::{Route, Trajectories};
     use crate::trajectory::route_tuple;
+    use crate::{Route, Trajectories};
 
     fn mock_routes() -> Vec<Route> {
         let route_tuples = route_tuple();
