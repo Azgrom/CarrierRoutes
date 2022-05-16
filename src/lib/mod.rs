@@ -7,10 +7,10 @@ use std::vec;
 use trajectory::Trajectories;
 
 mod route;
-mod trajectory;
+pub mod trajectory;
 
 #[derive(Clone, Debug, PartialEq)]
-struct AdjacencyMatrix {
+pub struct AdjacencyMatrix {
     data: Vec<Vec<Option<usize>>>,
 }
 
@@ -100,15 +100,36 @@ impl AdjacencyMatrix {
                 .filter(|&edge| *node == edge.0)
                 .map(|rs| rs.1)
                 .collect::<Vec<usize>>();
-            let mut from_to_relations: Vec<(usize, Option<Vec<usize>>)> = Vec::new();
 
-            if destinations.is_empty() {
-                from_to_relations = vec![(*node, None)];
+            if let false = destinations.is_empty() {
+                d_edges.append(&mut vec![(*node, Some(destinations))]);
             } else {
-                from_to_relations = vec![(*node, Some(destinations))];
+                d_edges.append(&mut vec![(*node, None)]);
             }
-            d_edges.append(&mut from_to_relations);
         }
+
+        d_edges
+    }
+
+    fn directed_edges2(
+        &self,
+        matrix_nodes: &Vec<usize>,
+        matrix_edges: &Vec<(usize, usize, usize)>,
+    ) -> Vec<(usize, Option<Vec<usize>>)> {
+        let mut d_edges: Vec<(usize, Option<Vec<usize>>)> = Vec::new();
+
+        matrix_nodes.iter().for_each(|node| {
+            let destinations = matrix_edges
+                .iter()
+                .filter(|&edge| *node == edge.0)
+                .map(|rs| rs.1)
+                .collect::<Vec<usize>>();
+            if let false = destinations.is_empty() {
+                d_edges.append(&mut vec![(*node, Some(destinations))]);
+            } else {
+                d_edges.append(&mut vec![(*node, None)]);
+            }
+        });
 
         d_edges
     }
@@ -211,10 +232,22 @@ impl AdjacencyMatrix {
         result
     }
 
-    fn lazy_prolix_directed_dijkstra(&self, src: usize, dst: usize) -> Vec<Vec<usize>> {
+    pub fn lazy_prolix_directed_dijkstra(&self, src: usize, dst: usize) -> Vec<Vec<usize>> {
         let matrix_nodes = self.lazy_nodes().collect::<Vec<usize>>();
         let matrix_edges = self.edges();
         let directed_edges = self.directed_edges(&matrix_nodes, &matrix_edges);
+
+        let possible_routes = Self::possible_routes(src, &directed_edges);
+
+        let result = Self::routes_between_two_points(&dst, possible_routes);
+
+        result
+    }
+
+    pub fn lazy_prolix_directed2_dijkstra(&self, src: usize, dst: usize) -> Vec<Vec<usize>> {
+        let matrix_nodes = self.lazy_nodes().collect::<Vec<usize>>();
+        let matrix_edges = self.edges();
+        let directed_edges = self.directed_edges2(&matrix_nodes, &matrix_edges);
 
         let possible_routes = Self::possible_routes(src, &directed_edges);
 
