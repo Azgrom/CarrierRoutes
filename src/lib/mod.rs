@@ -1,6 +1,7 @@
 use route::Route;
 use std::fmt::Debug;
 use std::iter::Map;
+use std::mem::swap;
 use std::ops::{Index, IndexMut, Range};
 use std::slice::{Iter, IterMut, SliceIndex};
 use std::vec;
@@ -315,5 +316,156 @@ mod adj_matrix_tests {
 
         result = adj_matrix.lazy_prolix_directed_dijkstra(4, 3);
         assert_eq!(result, vec![vec![4, 0, 1, 2, 3], vec![4, 0, 1, 3]]);
+    }
+}
+
+struct Edge {
+    to: usize,
+    cost: f64,
+}
+
+impl Edge {
+    fn new(to: usize, cost: f64) -> Self {
+        Self { to, cost }
+    }
+}
+
+struct MinIndexedDHeap<T> {
+    size: usize,
+    max_number: usize,
+    degree: usize,
+    child: Vec<usize>,
+    parent: Vec<usize>,
+    position_map: Vec<usize>,
+    inverse_map: Vec<usize>,
+    values: Vec<Option<T>>,
+}
+
+impl<T> MinIndexedDHeap<T>
+where T: Clone + PartialOrd
+{
+    fn new(mut degree: usize, mut max_size: usize) -> Self {
+        if degree <= 2 {
+            degree = 2;
+        }
+        if max_size <= degree + 1 {
+            max_size = degree + 1;
+        }
+
+        let values: Vec<Option<T>> = Vec::with_capacity(max_size);
+        let mut inverse_map = vec![0; max_size];
+        let mut position_map = vec![0; max_size];
+        let mut child = vec![0; max_size];
+        let mut parent = vec![0; max_size];
+
+        (0..max_size).for_each(|i| {
+            parent[i] = (i - 1) / degree;
+            child[i] = i * degree + 1;
+        });
+
+        Self {
+            size: max_size,
+            max_number: max_size,
+            degree,
+            child,
+            parent,
+            position_map,
+            inverse_map,
+            values,
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.size
+    }
+
+    fn is_empty(&self) -> bool {
+        self.size == 0
+    }
+
+    fn contains(&self, k: usize) -> bool {
+        self.position_map[k] != 0
+    }
+
+    fn peek_min_key_index(&self) -> usize {
+        self.inverse_map[0]
+    }
+
+    fn peek_min_value(&self) -> Option<T> {
+        self.values[self.inverse_map[0]].clone()
+    }
+
+    fn poll_min_value(&mut self) -> Option<T> {
+        let min_value = self.peek_min_value();
+        self.delete(self.peek_min_key_index() as usize);
+
+        min_value
+    }
+
+    fn delete(&mut self, k: usize) -> Option<T> {
+        self.key_exists_or_throw(k);
+
+        let i = self.position_map[k] as usize;
+        self.size -= 1;
+        self.swap(i, self.size);
+        self.sink(i);
+        self.swim(i);
+
+        let value = self.values[k].clone();
+        self.values[k] = None;
+        self.position_map[k] = 0;
+        self.inverse_map[self.size] = 0;
+
+        value
+    }
+
+    fn sink(&mut self, mut i: usize) {
+        let mut j = self.min_child(i);
+
+        while j != 0 {
+            self.swap(i, j);
+            i = j;
+            j = self.min_child(i);
+        }
+    }
+
+    fn swim(&mut self, mut i: usize) {
+        while i < self.parent[i] {
+            self.swap(i, self.parent[i]);
+            i = self.parent[i];
+        }
+    }
+
+    fn min_child(&self, mut i: usize) -> usize {
+        let mut index = 0;
+        let from = self.child[i];
+        let to = Self::min(self.size, from + self.degree);
+
+        (from..to).for_each(|j| {
+            if self.values[i] > self.values[j] {
+                i = j;
+                index = i;
+            }
+        });
+
+        index
+    }
+
+    fn min(a: usize, b: usize) -> usize {
+        return if a > b { b } else { a };
+    }
+
+    fn swap(&mut self, i: usize, j: usize) {
+        self.position_map[self.inverse_map[j] as usize] = i;
+        self.position_map[self.inverse_map[i] as usize] = j;
+        self.inverse_map.swap(i, j);
+    }
+
+    fn key_exists_or_throw(&self, k: usize) -> Result<u8, String> {
+        if !self.contains(k as usize) {
+            return Err(format!("Index does not exist; received: {}", k));
+        }
+
+        Ok(0)
     }
 }
