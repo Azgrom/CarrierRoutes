@@ -1,7 +1,6 @@
 use route::Route;
 use std::fmt::Debug;
 use std::iter::Map;
-use std::mem::swap;
 use std::ops::{Index, IndexMut, Range};
 use std::slice::{Iter, IterMut, SliceIndex};
 use std::vec;
@@ -353,8 +352,8 @@ where T: Clone + PartialOrd
         }
 
         let values: Vec<Option<T>> = Vec::with_capacity(max_size);
-        let mut inverse_map = vec![0; max_size];
-        let mut position_map = vec![0; max_size];
+        let inverse_map = vec![0; max_size];
+        let position_map = vec![0; max_size];
         let mut child = vec![0; max_size];
         let mut parent = vec![0; max_size];
 
@@ -395,15 +394,29 @@ where T: Clone + PartialOrd
         self.values[self.inverse_map[0]].clone()
     }
 
-    fn poll_min_value(&mut self) -> Option<T> {
+    fn poll_min_value(&mut self) -> Result<Option<T>, String> {
         let min_value = self.peek_min_value();
-        self.delete(self.peek_min_key_index() as usize);
+        self.delete(self.peek_min_key_index() as usize)?;
 
-        min_value
+        Ok(min_value)
     }
 
-    fn delete(&mut self, k: usize) -> Option<T> {
-        self.key_exists_or_throw(k);
+    fn insert<'a>(&mut self, k: &'a usize, value: &'a Option<T>) -> Result<(), &'a str> {
+        if self.contains(*k) {
+            return Err("Index already exists");
+        }
+        Self::value_not_null_or_throw(value)?;
+        self.position_map[*k] = self.size;
+        self.inverse_map[self.size] = *k;
+        self.values[*k] = value.clone();
+        self.swim(self.size);
+        self.size += 1;
+
+        Ok(())
+    }
+
+    fn delete(&mut self, k: usize) -> Result<Option<T>, String> {
+        self.key_exists_or_throw(k)?;
 
         let i = self.position_map[k] as usize;
         self.size -= 1;
@@ -416,7 +429,59 @@ where T: Clone + PartialOrd
         self.position_map[k] = 0;
         self.inverse_map[self.size] = 0;
 
-        value
+        Ok(value)
+    }
+
+    fn update(&mut self, k: usize, value: Option<T>) -> Result<Option<T>, String> {
+        self.key_exists_and_value_not_null_or_throw(k, &value)?;
+        let i = self.position_map[k];
+        let old_value = self.values[k].clone();
+        self.values[k] = value;
+        self.sink(i);
+        self.swim(i);
+
+        Ok(old_value)
+    }
+
+    fn decrease(&mut self, k: usize, value: Option<T>) -> Result<(), String> {
+        self.key_exists_and_value_not_null_or_throw(k, &value)?;
+
+        if value < self.values[k] {
+            self.values[k] = value;
+            self.swim(self.position_map[k]);
+        }
+
+        Ok(())
+    }
+
+    fn increase(&mut self, k: usize, value: Option<T>) -> Result<(), String> {
+        self.key_exists_and_value_not_null_or_throw(k, &value)?;
+
+        if self.values[k] < value {
+            self.values[k] = value;
+            self.sink(self.position_map[k]);
+        }
+
+        Ok(())
+    }
+
+    fn min_child(&self, mut i: usize) -> usize {
+        let mut index = 0;
+        let from = self.child[i];
+        let to = Self::min(self.size, from + self.degree);
+
+        (from..to).for_each(|j| {
+                            if self.values[i] > self.values[j] {
+            i = j;
+            index = i;
+        }
+    });
+
+        index
+    }
+
+    fn min(a: usize, b: usize) -> usize {
+        return if a > b { b } else { a };
     }
 
     fn sink(&mut self, mut i: usize) {
@@ -435,37 +500,29 @@ where T: Clone + PartialOrd
             i = self.parent[i];
         }
     }
-
-    fn min_child(&self, mut i: usize) -> usize {
-        let mut index = 0;
-        let from = self.child[i];
-        let to = Self::min(self.size, from + self.degree);
-
-        (from..to).for_each(|j| {
-            if self.values[i] > self.values[j] {
-                i = j;
-                index = i;
-            }
-        });
-
-        index
-    }
-
-    fn min(a: usize, b: usize) -> usize {
-        return if a > b { b } else { a };
-    }
-
     fn swap(&mut self, i: usize, j: usize) {
         self.position_map[self.inverse_map[j] as usize] = i;
         self.position_map[self.inverse_map[i] as usize] = j;
         self.inverse_map.swap(i, j);
     }
 
-    fn key_exists_or_throw(&self, k: usize) -> Result<u8, String> {
+    fn key_exists_or_throw(&self, k: usize) -> Result<(), String> {
         if !self.contains(k as usize) {
             return Err(format!("Index does not exist; received: {}", k));
         }
+        Ok(())
+    }
 
-        Ok(0)
+    fn key_exists_and_value_not_null_or_throw(&self, k: usize, value: &Option<T>) -> Result<(), String> {
+        self.key_exists_or_throw(k)?;
+        Self::value_not_null_or_throw(value)?;
+        Ok(())
+    }
+
+    fn value_not_null_or_throw(value: &Option<T>) -> Result<(), &str> {
+        if value.is_none() {
+            return Err("Value cannot be None");
+        }
+        Ok(())
     }
 }
