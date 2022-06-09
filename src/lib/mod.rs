@@ -1,528 +1,102 @@
-use route::Route;
-use std::fmt::Debug;
-use std::iter::Map;
-use std::ops::{Index, IndexMut, Range};
-use std::slice::{Iter, IterMut, SliceIndex};
-use std::vec;
-use trajectory::Trajectories;
+use crate::routes::{Edge, Routes};
+use indexed_priority_queue::ipq::{IndexedBinaryHeap, IndexedPriorityQueue};
+use indexed_priority_queue::MinIndexedPriorityQueue;
 
-mod route;
-pub mod trajectory;
+pub mod routes;
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct AdjacencyMatrix {
-    data: Vec<Vec<Option<usize>>>,
-}
-
-impl<Idx> Index<Idx> for AdjacencyMatrix
-where
-    Idx: SliceIndex<[Vec<Option<usize>>]>,
-{
-    type Output = Idx::Output;
-
-    fn index(&self, index: Idx) -> &Self::Output {
-        &self.data[index]
+fn guard_against_invalid_endpoints(n: usize, src: usize, dst: usize) {
+    if src >= n {
+        panic!("Invalid node index");
+    }
+    if dst >= n {
+        panic!("Invalid node index");
     }
 }
 
-impl<Idx> IndexMut<Idx> for AdjacencyMatrix
-where
-    Idx: SliceIndex<[Vec<Option<usize>>]>,
-{
-    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
-        &mut self.data[index]
+fn eager_dijkstra(src: usize, dst: usize, rt: Routes<usize, String>) -> usize {
+    let number_of_nodes = rt.nodes_count();
+    let mut adj_list = rt.adj_list();
+    let mut min_ipq_vec = adj_list
+        .iter_mut()
+        .map(|v| MinIndexedPriorityQueue::from_vec_ref(v))
+        .collect::<Vec<MinIndexedPriorityQueue<Edge>>>();
+
+    let mut from = src;
+    let mut visited = vec![false; number_of_nodes];
+    let mut dist = vec![usize::MAX; number_of_nodes];
+
+    let mut step = 0;
+    let mut origin = min_ipq_vec.remove(from);
+    dist[from] = 0;
+
+    while step < number_of_nodes {
+        while !origin.is_empty() {
+            if visited[from] {
+                from = origin.poll_min_value().to;
+                continue;
+            }
+
+            visited[from] = true;
+            step += 1;
+
+            origin.iter_mut().for_each(|e| {
+                let new_dist = dist[from].saturating_add(e.cost);
+                if new_dist < usize::MAX {
+                    e.cost = new_dist;
+                }
+                dist[e.to] = e.cost;
+            });
+
+            let next_promising_value = origin.poll_min_value();
+            from = next_promising_value.to;
+
+            if from == dst {
+                return dist[dst];
+            }
+        }
+
+        origin = min_ipq_vec.remove(step - from);
     }
+
+    5
 }
 
-impl AdjacencyMatrix {
-    pub fn new(nodes_amount: usize) -> AdjacencyMatrix {
-        let columns: Vec<Option<usize>> = vec![None; nodes_amount];
-        let rows = vec![columns; nodes_amount];
+pub fn reconstruct_path<'a>(
+    src: usize,
+    dst: usize,
+    rt: Vec<(String, String, usize)>,
+) -> Result<usize, &'a str> {
+    let routes = Routes::from(rt);
+    guard_against_invalid_endpoints(routes.nodes_count(), src, dst);
 
-        AdjacencyMatrix { data: rows }
+    let shortest_distance = eager_dijkstra(src, dst, routes);
+
+    if shortest_distance < usize::MAX {
+        return Ok(shortest_distance);
     }
 
-    pub fn from_trajectories(trajectories: Trajectories) -> AdjacencyMatrix {
-        let nodes = trajectories.nodes();
-        let mut adj_matrix = Self::new(nodes.len());
-
-        for route in trajectories.iter() {
-            let row_index = nodes.iter().position(|n| *n == route.source()).unwrap();
-            let col_index = nodes
-                .iter()
-                .position(|n| *n == route.destination())
-                .unwrap();
-
-            adj_matrix[row_index][col_index] = Some(route.distance());
-        }
-
-        adj_matrix
-    }
-
-    pub fn iter(&self) -> Iter<'_, Vec<Option<usize>>> {
-        self.data.iter()
-    }
-
-    fn iter_mut(&mut self) -> IterMut<'_, Vec<Option<usize>>> {
-        self.data.iter_mut()
-    }
-
-    fn edges(&self) -> Vec<(usize, usize, usize)> {
-        let mut edges: Vec<(usize, usize, usize)> = Vec::new();
-
-        for (row_index, row) in self.iter().enumerate() {
-            for (col_index, col) in row.iter().enumerate() {
-                if let Some(el_weight) = col {
-                    edges.push((row_index, col_index, *el_weight));
-                }
-            }
-        }
-
-        edges
-    }
-
-    fn lazy_nodes(&self) -> Map<Range<usize>, fn(usize) -> usize> {
-        let matrix_len = self.data.len();
-
-        (0..matrix_len).map(|x| x)
-    }
-
-    fn directed_edges(
-        &self,
-        matrix_nodes: &Vec<usize>,
-        matrix_edges: &Vec<(usize, usize, usize)>,
-    ) -> Vec<(usize, Option<Vec<usize>>)> {
-        let mut d_edges: Vec<(usize, Option<Vec<usize>>)> = Vec::new();
-
-        for node in matrix_nodes {
-            let destinations = matrix_edges
-                .iter()
-                .filter(|&edge| *node == edge.0)
-                .map(|rs| rs.1)
-                .collect::<Vec<usize>>();
-
-            if let false = destinations.is_empty() {
-                d_edges.append(&mut vec![(*node, Some(destinations))]);
-            } else {
-                d_edges.append(&mut vec![(*node, None)]);
-            }
-        }
-
-        d_edges
-    }
-
-    fn directed_edges2(
-        &self,
-        matrix_nodes: &Vec<usize>,
-        matrix_edges: &Vec<(usize, usize, usize)>,
-    ) -> Vec<(usize, Option<Vec<usize>>)> {
-        let mut d_edges: Vec<(usize, Option<Vec<usize>>)> = Vec::new();
-
-        matrix_nodes.iter().for_each(|node| {
-            let destinations = matrix_edges
-                .iter()
-                .filter(|&edge| *node == edge.0)
-                .map(|rs| rs.1)
-                .collect::<Vec<usize>>();
-            if let false = destinations.is_empty() {
-                d_edges.append(&mut vec![(*node, Some(destinations))]);
-            } else {
-                d_edges.append(&mut vec![(*node, None)]);
-            }
-        });
-
-        d_edges
-    }
-
-    fn possible_routes(
-        src: usize,
-        directed_edges: &Vec<(usize, Option<Vec<usize>>)>,
-    ) -> Vec<Vec<usize>> {
-        let mut current_route = Vec::new();
-        let mut visited_nodes: Vec<usize> = Vec::new();
-        let mut possible_routes: Vec<Vec<usize>> = Vec::new();
-
-        let filtered_source = directed_edges
-            .iter()
-            .filter(|&d_e| src == d_e.0 && d_e.1.is_some());
-
-        for (starting_point, endpoints) in filtered_source {
-            current_route.push(*starting_point);
-            visited_nodes.push(*starting_point);
-
-            for target in endpoints.as_ref().unwrap() {
-                if visited_nodes.contains(target) {
-                    continue;
-                }
-
-                Self::iterate_through_possibilities(
-                    target,
-                    &mut current_route,
-                    visited_nodes.clone(),
-                    &mut possible_routes,
-                    directed_edges,
-                );
-            }
-        }
-
-        possible_routes
-    }
-
-    fn iterate_through_possibilities(
-        src: &usize,
-        current_route: &mut Vec<usize>,
-        mut visited_nodes: Vec<usize>,
-        possible_routes: &mut Vec<Vec<usize>>,
-        directed_edges: &Vec<(usize, Option<Vec<usize>>)>,
-    ) -> Vec<usize> {
-        current_route.push(*src);
-
-        let filtered_source = directed_edges
-            .iter()
-            .filter(|&d_e| *src == d_e.0 && d_e.1.is_some());
-
-        if filtered_source.clone().next() == None {
-            visited_nodes.pop();
-            return visited_nodes;
-        } else {
-            for (starting_point, endpoints) in filtered_source {
-                visited_nodes.push(*starting_point);
-
-                for target in endpoints.as_ref().unwrap() {
-                    if visited_nodes.contains(target) {
-                        possible_routes.push(current_route.to_owned());
-                        break;
-                    }
-
-                    visited_nodes = Self::iterate_through_possibilities(
-                        target,
-                        current_route,
-                        visited_nodes,
-                        possible_routes,
-                        directed_edges,
-                    );
-                }
-                if !current_route.is_empty() {
-                    possible_routes.push(current_route.to_owned());
-
-                    *current_route = visited_nodes.clone();
-                }
-            }
-
-            visited_nodes
-        }
-    }
-
-    fn routes_between_two_points(dst: &usize, possible_routes: Vec<Vec<usize>>) -> Vec<Vec<usize>> {
-        let mut result: Vec<Vec<usize>> = Vec::new();
-        for route in possible_routes
-            .iter()
-            .filter(|&routes| routes.contains(&dst))
-        {
-            for (index, node) in route.iter().enumerate() {
-                if *node == *dst {
-                    let path = route[..=index].to_vec();
-                    if let false = result.contains(&path) {
-                        result.push(path);
-                    }
-                }
-            }
-        }
-
-        result
-    }
-
-    pub fn lazy_prolix_directed_dijkstra(&self, src: usize, dst: usize) -> Vec<Vec<usize>> {
-        let matrix_nodes = self.lazy_nodes().collect::<Vec<usize>>();
-        let matrix_edges = self.edges();
-        let directed_edges = self.directed_edges(&matrix_nodes, &matrix_edges);
-
-        let possible_routes = Self::possible_routes(src, &directed_edges);
-
-        let result = Self::routes_between_two_points(&dst, possible_routes);
-
-        result
-    }
-
-    pub fn lazy_prolix_directed2_dijkstra(&self, src: usize, dst: usize) -> Vec<Vec<usize>> {
-        let matrix_nodes = self.lazy_nodes().collect::<Vec<usize>>();
-        let matrix_edges = self.edges();
-        let directed_edges = self.directed_edges2(&matrix_nodes, &matrix_edges);
-
-        let possible_routes = Self::possible_routes(src, &directed_edges);
-
-        let result = Self::routes_between_two_points(&dst, possible_routes);
-
-        result
-    }
+    Err("There were no route between endpoints")
 }
 
 #[cfg(test)]
-mod adj_matrix_tests {
-    use crate::trajectory::route_tuple;
-    use crate::{AdjacencyMatrix, Trajectories};
+mod eager_dijkstra_tests {
+    use crate::reconstruct_path;
+    use crate::routes::route_tuple;
+    use std::cmp::min_by_key;
 
-    fn mock_adj_matrix() -> AdjacencyMatrix {
+    #[test]
+    fn test() {
         let route_tuples = route_tuple().to_vec();
-        let trajectories = Trajectories::from_routes_tuples(route_tuples).ok().unwrap();
+        let shortest_path = reconstruct_path(0, 2, route_tuples).ok();
 
-        AdjacencyMatrix::from_trajectories(trajectories)
+        assert_eq!(shortest_path, Some(2));
     }
 
     #[test]
-    fn new_should_instantiate_empty_adjacency_matrix() {
-        let empty_adj_matrix = AdjacencyMatrix::new(5);
-        assert!(empty_adj_matrix
-            .iter()
-            .all(|rows| rows.iter().all(|cols| cols.is_none())));
-    }
+    fn test2() {
+        let x = vec![Some(2), Some(-1)];
+        let y = x.iter().min();
 
-    #[test]
-    fn from_trajectories_should_instantiate_adjacency_matrix_from_trajectories() {
-        let adj_matrix = mock_adj_matrix();
-
-        assert_eq!(
-            adj_matrix,
-            AdjacencyMatrix {
-                data: vec![
-                    vec![None, Some(1), None, None, None],
-                    vec![None, None, Some(1), Some(1), None],
-                    vec![None, None, None, Some(1), None],
-                    vec![None, None, None, None, None],
-                    vec![Some(1), None, None, None, None]
-                ]
-            }
-        )
-    }
-
-    #[test]
-    fn edges_method_should_return_all_edges_and_their_weight() {
-        let adj_matrix = mock_adj_matrix();
-        let paths = adj_matrix.edges();
-
-        assert_eq!(
-            paths,
-            vec![(0, 1, 1), (1, 2, 1), (1, 3, 1), (2, 3, 1), (4, 0, 1)]
-        );
-    }
-
-    #[test]
-    fn lazy_prolix_dijkstra_should_return_all_possible_routes_between_src_and_dst() {
-        let adj_matrix = mock_adj_matrix();
-
-        let mut result = adj_matrix.lazy_prolix_directed_dijkstra(4, 0);
-        assert_eq!(result, [[4, 0]]);
-
-        result = adj_matrix.lazy_prolix_directed_dijkstra(4, 3);
-        assert_eq!(result, vec![vec![4, 0, 1, 2, 3], vec![4, 0, 1, 3]]);
-    }
-}
-
-struct Edge {
-    to: usize,
-    cost: f64,
-}
-
-impl Edge {
-    fn new(to: usize, cost: f64) -> Self {
-        Self { to, cost }
-    }
-}
-
-struct MinIndexedDHeap<T> {
-    size: usize,
-    max_number: usize,
-    degree: usize,
-    child: Vec<usize>,
-    parent: Vec<usize>,
-    position_map: Vec<usize>,
-    inverse_map: Vec<usize>,
-    values: Vec<Option<T>>,
-}
-
-impl<T> MinIndexedDHeap<T>
-where T: Clone + PartialOrd
-{
-    fn new(mut degree: usize, mut max_size: usize) -> Self {
-        if degree <= 2 {
-            degree = 2;
-        }
-        if max_size <= degree + 1 {
-            max_size = degree + 1;
-        }
-
-        let values: Vec<Option<T>> = Vec::with_capacity(max_size);
-        let inverse_map = vec![0; max_size];
-        let position_map = vec![0; max_size];
-        let mut child = vec![0; max_size];
-        let mut parent = vec![0; max_size];
-
-        (0..max_size).for_each(|i| {
-            parent[i] = (i - 1) / degree;
-            child[i] = i * degree + 1;
-        });
-
-        Self {
-            size: max_size,
-            max_number: max_size,
-            degree,
-            child,
-            parent,
-            position_map,
-            inverse_map,
-            values,
-        }
-    }
-
-    fn size(&self) -> usize {
-        self.size
-    }
-
-    fn is_empty(&self) -> bool {
-        self.size == 0
-    }
-
-    fn contains(&self, k: usize) -> bool {
-        self.position_map[k] != 0
-    }
-
-    fn peek_min_key_index(&self) -> usize {
-        self.inverse_map[0]
-    }
-
-    fn peek_min_value(&self) -> Option<T> {
-        self.values[self.inverse_map[0]].clone()
-    }
-
-    fn poll_min_value(&mut self) -> Result<Option<T>, String> {
-        let min_value = self.peek_min_value();
-        self.delete(self.peek_min_key_index() as usize)?;
-
-        Ok(min_value)
-    }
-
-    fn insert<'a>(&mut self, k: &'a usize, value: &'a Option<T>) -> Result<(), &'a str> {
-        if self.contains(*k) {
-            return Err("Index already exists");
-        }
-        Self::value_not_null_or_throw(value)?;
-        self.position_map[*k] = self.size;
-        self.inverse_map[self.size] = *k;
-        self.values[*k] = value.clone();
-        self.swim(self.size);
-        self.size += 1;
-
-        Ok(())
-    }
-
-    fn delete(&mut self, k: usize) -> Result<Option<T>, String> {
-        self.key_exists_or_throw(k)?;
-
-        let i = self.position_map[k] as usize;
-        self.size -= 1;
-        self.swap(i, self.size);
-        self.sink(i);
-        self.swim(i);
-
-        let value = self.values[k].clone();
-        self.values[k] = None;
-        self.position_map[k] = 0;
-        self.inverse_map[self.size] = 0;
-
-        Ok(value)
-    }
-
-    fn update(&mut self, k: usize, value: Option<T>) -> Result<Option<T>, String> {
-        self.key_exists_and_value_not_null_or_throw(k, &value)?;
-        let i = self.position_map[k];
-        let old_value = self.values[k].clone();
-        self.values[k] = value;
-        self.sink(i);
-        self.swim(i);
-
-        Ok(old_value)
-    }
-
-    fn decrease(&mut self, k: usize, value: Option<T>) -> Result<(), String> {
-        self.key_exists_and_value_not_null_or_throw(k, &value)?;
-
-        if value < self.values[k] {
-            self.values[k] = value;
-            self.swim(self.position_map[k]);
-        }
-
-        Ok(())
-    }
-
-    fn increase(&mut self, k: usize, value: Option<T>) -> Result<(), String> {
-        self.key_exists_and_value_not_null_or_throw(k, &value)?;
-
-        if self.values[k] < value {
-            self.values[k] = value;
-            self.sink(self.position_map[k]);
-        }
-
-        Ok(())
-    }
-
-    fn min_child(&self, mut i: usize) -> usize {
-        let mut index = 0;
-        let from = self.child[i];
-        let to = Self::min(self.size, from + self.degree);
-
-        (from..to).for_each(|j| {
-                            if self.values[i] > self.values[j] {
-            i = j;
-            index = i;
-        }
-    });
-
-        index
-    }
-
-    fn min(a: usize, b: usize) -> usize {
-        return if a > b { b } else { a };
-    }
-
-    fn sink(&mut self, mut i: usize) {
-        let mut j = self.min_child(i);
-
-        while j != 0 {
-            self.swap(i, j);
-            i = j;
-            j = self.min_child(i);
-        }
-    }
-
-    fn swim(&mut self, mut i: usize) {
-        while i < self.parent[i] {
-            self.swap(i, self.parent[i]);
-            i = self.parent[i];
-        }
-    }
-    fn swap(&mut self, i: usize, j: usize) {
-        self.position_map[self.inverse_map[j] as usize] = i;
-        self.position_map[self.inverse_map[i] as usize] = j;
-        self.inverse_map.swap(i, j);
-    }
-
-    fn key_exists_or_throw(&self, k: usize) -> Result<(), String> {
-        if !self.contains(k as usize) {
-            return Err(format!("Index does not exist; received: {}", k));
-        }
-        Ok(())
-    }
-
-    fn key_exists_and_value_not_null_or_throw(&self, k: usize, value: &Option<T>) -> Result<(), String> {
-        self.key_exists_or_throw(k)?;
-        Self::value_not_null_or_throw(value)?;
-        Ok(())
-    }
-
-    fn value_not_null_or_throw(value: &Option<T>) -> Result<(), &str> {
-        if value.is_none() {
-            return Err("Value cannot be None");
-        }
-        Ok(())
+        println!("");
     }
 }

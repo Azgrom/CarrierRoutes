@@ -1,20 +1,15 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use lib::trajectory::{route_tuple, Trajectories};
-use lib::AdjacencyMatrix;
+use lib::reconstruct_path;
+use lib::routes::route_tuple;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let route_tuples = route_tuple().to_vec();
-    let trajectories = Trajectories::from_routes_tuples(route_tuples).ok().unwrap();
-    let adj_matrix = AdjacencyMatrix::from_trajectories(trajectories);
 
-    let mut group = c.benchmark_group("Iterator vs Loop Directed Edges");
+    let mut group = c.benchmark_group("Eager Dijkstra bench");
 
-    for endpoints in [(4, 3)].iter() {
-        group.bench_with_input(BenchmarkId::new("Loop", "(4, 3)"), endpoints, |b, i| {
-            b.iter(|| adj_matrix.lazy_prolix_directed_dijkstra(i.0, i.1))
-        });
-        group.bench_with_input(BenchmarkId::new("Iterator", "(4, 3)"), endpoints, |b, i| {
-            b.iter(|| adj_matrix.lazy_prolix_directed2_dijkstra(i.0, i.1))
+    for endpoints in [(0, 2)].iter() {
+        group.bench_with_input(BenchmarkId::new("Loop", "(1, 2)"), endpoints, |b, i| {
+            b.iter(|| reconstruct_path(i.0, i.1, route_tuples.clone()))
         });
     }
 
