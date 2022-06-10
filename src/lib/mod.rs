@@ -1,16 +1,16 @@
-use crate::routes::{Edge, Routes};
+use crate::routes::Routes;
 use indexed_priority_queue::ipq::{IndexedBinaryHeap, IndexedPriorityQueue};
 use indexed_priority_queue::MinIndexedPriorityQueue;
 
 pub mod routes;
 
-fn guard_against_invalid_endpoints(n: usize, src: usize, dst: usize) {
-    if src >= n {
-        panic!("Invalid node index");
-    }
-    if dst >= n {
-        panic!("Invalid node index");
-    }
+fn guard_against_invalid_endpoints(src: usize, dst: usize, rt: Vec<(String, String, usize)>) -> Result<Routes<usize, String>, String>{
+    let routes = Routes::from(rt);
+    return match (src, dst, routes.nodes_count()) {
+        (i, j, _) if i == j => Err(format!("Indexes cannot be the same! Received src = {} and dst = {}", src, dst)),
+        (i, j, k) if i >= k || j >= k => Err(format!("Invalid node index equal or larger than nodes count. Received src = {}, dst = {} with nodes_count = {}", i, j, k)),
+        _ => Ok(routes)
+    };
 }
 
 fn eager_dijkstra(src: usize, dst: usize, rt: Routes<usize, String>) -> usize {
@@ -62,35 +62,34 @@ fn eager_dijkstra(src: usize, dst: usize, rt: Routes<usize, String>) -> usize {
     usize::MAX
 }
 
-pub fn shortest_path<'a>(
+pub fn shortest_path(
     src: usize,
     dst: usize,
     rt: Vec<(String, String, usize)>,
-) -> Result<usize, &'a str> {
-    let routes = Routes::from(rt);
-    guard_against_invalid_endpoints(routes.nodes_count(), src, dst);
-
-    let shortest_distance = eager_dijkstra(src, dst, routes);
-
-    if shortest_distance < usize::MAX {
-        return Ok(shortest_distance);
+) -> Result<usize, String> {
+    let routes = guard_against_invalid_endpoints(src, dst, rt);
+    if routes.is_err() {
+        return Err(routes.unwrap_err());
     }
 
-    Err("There were no route between endpoints")
+    let shortest_distance = eager_dijkstra(src, dst, routes.ok().unwrap());
+    match shortest_distance {
+        usize::MAX => Err("There were no route between endpoints".to_string()),
+        _ => Ok(shortest_distance)
+    }
 }
 
 #[cfg(test)]
 mod eager_dijkstra_tests {
     use crate::routes::route_tuple;
     use crate::shortest_path;
-    use std::cmp::min_by_key;
+
+    fn test() {
+        // shortest_path()
+    }
 
     #[test]
     fn shortest_path_should_correctly_return_lesser_cost_possibility() {
-        let route_tuples = route_tuple();
-        let cost = shortest_path(0, 2, route_tuples).ok();
-        assert_eq!(cost, Some(2));
-
         let route_tuples = vec![
             ("A".to_string(), "B".to_string(), 6),
             ("A".to_string(), "E".to_string(), 4),
@@ -104,7 +103,20 @@ mod eager_dijkstra_tests {
             ("E".to_string(), "B".to_string(), 5),
             ("E".to_string(), "D".to_string(), 7),
         ];
-        let cost = shortest_path(0, 3, route_tuples).ok();
+        let mut cost = shortest_path(0, 3, route_tuples.clone()).ok();
         assert_eq!(cost, Some(9));
+
+        cost = shortest_path(3, 0, route_tuples.clone()).ok();
+        assert_eq!(cost, Some(14));
+
+        cost = shortest_path(4, 0, route_tuples.clone()).ok();
+        assert_eq!(cost, Some(11));
+    }
+
+    #[test]
+    fn shortest_path_function_should_be_able_to_identify_no_linkage_between_endpoints() {
+        let route_tuples = route_tuple();
+        let cost = shortest_path(1, 4, route_tuples);
+        assert_eq!(cost, Err("There were no route between endpoints"))
     }
 }

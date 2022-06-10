@@ -11,6 +11,7 @@ pub fn route_tuple() -> Vec<(String, String, usize)> {
     ]
 }
 
+#[derive(Debug)]
 pub(crate) struct Routes<D, N> {
     nodes: Vec<N>,
     pub(crate) distances: Vec<D>,
@@ -26,19 +27,13 @@ pub(crate) struct Edge {
 
 impl PartialEq<Self> for Edge {
     fn eq(&self, other: &Self) -> bool {
-        self.cost.eq(&self.cost)
+        self.cost.eq(&other.cost)
     }
 }
 
 impl PartialOrd for Edge {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.cost.partial_cmp(&other.cost)
-    }
-}
-
-impl Edge {
-    fn serialize_edge(&self) -> (usize, usize){
-        (self.to, self.cost)
     }
 }
 
@@ -78,20 +73,8 @@ impl<D, N> Routes<D, N>
         D: Clone + PartialOrd,
         N: Clone,
 {
-    fn get_route(&self, i: usize) -> (N, N, D) {
-        (
-            self.nodes[self.sources[i]].clone(),
-            self.nodes[self.destinations[i]].clone(),
-            self.distances[i].clone(),
-        )
-    }
-
     pub(crate) fn nodes_count(&self) -> usize {
         self.nodes.len()
-    }
-
-    pub(crate) fn edge_count(&self) -> usize {
-        self.sources.len()
     }
 }
 
@@ -104,8 +87,8 @@ impl Routes<usize, String> {
 
         n_count.map(|n|
             self.sources.iter().enumerate()
-                .filter(|(_i, &node)| node == n)
-                .map(|(index, &node)| Edge {
+                .filter(|(_, &node)| node == n)
+                .map(|(index, _)| Edge {
                     to: self.destinations[index],
                     cost: self.distances[index]
                 }).collect::<Vec<Edge>>()
@@ -116,31 +99,6 @@ impl Routes<usize, String> {
 #[cfg(test)]
 mod routes_tests {
     use super::*;
-
-    #[test]
-    fn test() {
-        let rt = route_tuple();
-        let routes = Routes::from(rt);
-        let adj_list = routes.adj_list();
-
-        assert_eq!(adj_list[0].first().unwrap().serialize_edge(), (1, 1));
-        assert_eq!(adj_list[1].first().unwrap().serialize_edge(), (2, 1));
-        assert_eq!(adj_list[1].last().unwrap().serialize_edge(), (3, 1));
-        assert_eq!(adj_list[2].last().unwrap().serialize_edge(), (3, 1));
-        assert_eq!(adj_list[4].last().unwrap().serialize_edge(), (0, 1));
-    }
-
-    #[test]
-    fn test_correctly_represent_nodes_edges_and_cost() {
-        let rt = route_tuple();
-        let routes = Routes::from(rt);
-
-        assert_eq!(routes.get_route(0), ("A".to_string(), "B".to_string(), 1));
-        assert_eq!(routes.get_route(1), ("B".to_string(), "C".to_string(), 1));
-        assert_eq!(routes.get_route(2), ("C".to_string(), "D".to_string(), 1));
-        assert_eq!(routes.get_route(3), ("B".to_string(), "D".to_string(), 1));
-        assert_eq!(routes.get_route(4), ("E".to_string(), "A".to_string(), 1));
-    }
 
     #[test]
     fn nodes_count_should_return_the_exact_number_of_nodes() {
