@@ -16,52 +16,53 @@ fn guard_against_invalid_endpoints(n: usize, src: usize, dst: usize) {
 fn eager_dijkstra(src: usize, dst: usize, rt: Routes<usize, String>) -> usize {
     let number_of_nodes = rt.nodes_count();
     let mut adj_list = rt.adj_list();
-    let mut min_ipq_vec = adj_list
-        .iter_mut()
-        .map(|v| MinIndexedPriorityQueue::from_vec_ref(v))
-        .collect::<Vec<MinIndexedPriorityQueue<Edge>>>();
+    let mut initial_node = adj_list[src].clone();
+    let mut min_ipq = MinIndexedPriorityQueue::from_vec_ref(&mut initial_node);
 
-    let mut from = src;
     let mut visited = vec![false; number_of_nodes];
     let mut dist = vec![usize::MAX; number_of_nodes];
-
-    let mut step = 0;
-    let mut origin = min_ipq_vec.remove(from);
+    let mut from = src;
     dist[from] = 0;
+    visited[from] = true;
 
-    while step < number_of_nodes {
-        while !origin.is_empty() {
-            if visited[from] {
-                from = origin.poll_min_value().to;
-                continue;
-            }
-
-            visited[from] = true;
-            step += 1;
-
-            origin.iter_mut().for_each(|e| {
-                let new_dist = dist[from].saturating_add(e.cost);
-                if new_dist < usize::MAX {
-                    e.cost = new_dist;
-                }
-                dist[e.to] = e.cost;
-            });
-
-            let next_promising_value = origin.poll_min_value();
-            from = next_promising_value.to;
-
-            if from == dst {
-                return dist[dst];
-            }
+    while !min_ipq.is_empty() {
+        let min_value = min_ipq.poll_min_value();
+        from = min_value.to;
+        visited[min_value.to] = true;
+        if min_value.cost < dist[min_value.to] {
+            dist[min_value.to] = min_value.cost;
         }
 
-        origin = min_ipq_vec.remove(step - from);
+        if min_value.cost > dist[min_value.to] {
+            continue;
+        }
+
+        adj_list[min_value.to]
+            .iter_mut()
+            .filter(|e| !visited[e.to])
+            .for_each(|e| {
+                let new_dist = dist[from].saturating_add(e.cost);
+                if new_dist < dist[e.to] {
+                    dist[e.to] = new_dist;
+                    e.cost = new_dist;
+
+                    if let Some(key_index) = min_ipq.iter().position(|v| v.to == e.to) {
+                        min_ipq.decrease(key_index, e.clone())
+                    } else {
+                        min_ipq.push(e.clone())
+                    }
+                }
+            });
+
+        if min_value.to == dst {
+            return dist[dst];
+        }
     }
 
-    5
+    usize::MAX
 }
 
-pub fn reconstruct_path<'a>(
+pub fn shortest_path<'a>(
     src: usize,
     dst: usize,
     rt: Vec<(String, String, usize)>,
@@ -80,23 +81,30 @@ pub fn reconstruct_path<'a>(
 
 #[cfg(test)]
 mod eager_dijkstra_tests {
-    use crate::reconstruct_path;
     use crate::routes::route_tuple;
+    use crate::shortest_path;
     use std::cmp::min_by_key;
 
     #[test]
-    fn test() {
-        let route_tuples = route_tuple().to_vec();
-        let shortest_path = reconstruct_path(0, 2, route_tuples).ok();
+    fn shortest_path_should_correctly_return_lesser_cost_possibility() {
+        let route_tuples = route_tuple();
+        let cost = shortest_path(0, 2, route_tuples).ok();
+        assert_eq!(cost, Some(2));
 
-        assert_eq!(shortest_path, Some(2));
-    }
-
-    #[test]
-    fn test2() {
-        let x = vec![Some(2), Some(-1)];
-        let y = x.iter().min();
-
-        println!("");
+        let route_tuples = vec![
+            ("A".to_string(), "B".to_string(), 6),
+            ("A".to_string(), "E".to_string(), 4),
+            ("B".to_string(), "A".to_string(), 6),
+            ("B".to_string(), "C".to_string(), 2),
+            ("B".to_string(), "D".to_string(), 4),
+            ("C".to_string(), "B".to_string(), 3),
+            ("C".to_string(), "D".to_string(), 1),
+            ("C".to_string(), "E".to_string(), 7),
+            ("D".to_string(), "B".to_string(), 8),
+            ("E".to_string(), "B".to_string(), 5),
+            ("E".to_string(), "D".to_string(), 7),
+        ];
+        let cost = shortest_path(0, 3, route_tuples).ok();
+        assert_eq!(cost, Some(9));
     }
 }
